@@ -131,7 +131,7 @@ class MidiSynth final : public Synth {
 
 uint8_t     MidiSynth::voiceToNote[numVoices]               = { 0 };
 uint8_t     MidiSynth::voiceToChannel[numVoices]            = { 0 };
-Instrument  MidiSynth::channelToInstrument[numMidiChannels] = { 0 };
+Instrument  MidiSynth::channelToInstrument[numMidiChannels] = {{ 0 }};
 uint8_t     MidiSynth::channelToVolume[numMidiChannels]     = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 uint8_t     MidiSynth::voiceToVolume[numVoices]             = { 0 };
 uint8_t     MidiSynth::voiceToVelocity[numVoices]           = { 0 };

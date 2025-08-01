@@ -24,13 +24,15 @@
 #ifndef __SYNTH_H__
 #define __SYNTH_H__
 
-#include <avr/interrupt.h>
-#include <avr/pgmspace.h>
+//#include <avr/interrupt.h>
+//#include <avr/pgmspace.h>
 #include <math.h>
+#include <print.h>
 #include <stdint.h>
 #include "instruments.h"
 #include "envelope.h"
-#include "dac.h"
+// #include "dac.h"
+#include "xdac.h"
 
 // With GCC, we can calculate the _noteToPitch table at compile time.
 #ifndef __EMSCRIPTEN__
@@ -113,12 +115,14 @@ class Synth {
   public:
     void begin(){
       Dac::setup();
+#if 0
 
       // Setup Timer2 for sample/mix/output ISR.
       TCCR2A = _BV(WGM21);                // CTC Mode (Clears timer and raises interrupt when OCR2B reaches OCR2A)
       TCCR2B = _BV(CS21);                 // Prescale None = C_FPU / 8 tick frequency
       OCR2A  = samplingInterval;          // Set timer top to sampling interval
       TIMSK2 = _BV(OCIE2A);               // Enable ISR
+#endif
     }
   
     // Returns the next idle voice, if any.  If no voice is idle, uses envelope stage and amplitude to
@@ -274,9 +278,10 @@ class Synth {
     }
   
     static uint16_t isr() __attribute__((always_inline)) {
+#if 0
       TIMSK2 = 0;         // Disable timer2 interrupts to prevent reentrancy.
       sei();              // Re-enable other interrupts to ensure USART RX ISR buffers incoming MIDI messages.
-    
+#endif
       {
         static uint16_t noise = 0xACE1;                   // 16-bit maximal-period Galois LFSR
         noise = (noise >> 1) ^ (-(noise & 1) & 0xB400);   // https://en.wikipedia.org/wiki/Linear-feedback_shift_register#Galois_LFSRs
@@ -289,7 +294,7 @@ class Synth {
         if (v_isNoise[voice]) {                           // To avoid needing a large wavetable for noise, we use xor to combine
           v_xor[voice] = static_cast<uint8_t>(noise);     // the a 256B wavetable with samples from the LFSR.
         }
-
+  
         const uint8_t fn = divider & 0xF0;                // Top 4 bits of 'divider' selects which additional work to perform.
         switch (fn) {
           case 0x00: {                                    // Advance frequency modulation and update 'v_pitch' for the current voice.
@@ -311,13 +316,14 @@ class Synth {
           }
         }
       }
-
+  
       // Macro that advances 'v_phase[voice]' by the sampling interval 'v_interval[voice]' and
       // stores the next 8-bit sample offset as 'offset##voice'.
       #define PHASE(voice) uint8_t offset##voice = ((v_phase[voice] += v_interval[voice]) >> 8)
 
       // Macro that samples the wavetable at the offset 'v_wave[voice] + offset##voice', and stores as 'sample##voice'.
-      #define SAMPLE(voice) int8_t sample##voice = (pgm_read_byte(v_wave[voice] + offset##voice))
+      // #define SAMPLE(voice) int8_t sample##voice = (pgm_read_byte(v_wave[voice] + offset##voice))
+      #define SAMPLE(voice) int8_t sample##voice = v_wave[voice][offset##voice];
 
       // Macro that applies 'v_xor[voice]' to 'sample##voice' and multiplies by 'v_amp[voice]'.
       #define MIX(voice) ((sample##voice ^ v_xor[voice]) * v_amp[voice])
@@ -327,10 +333,10 @@ class Synth {
     
       PHASE(0); PHASE(1); PHASE(2); PHASE(3);                             // Advance the Q8.8 phase and calculate the 8-bit offsets into the wavetable.
       PHASE(4); PHASE(5); PHASE(6); PHASE(7);                             // (Load stores should use constant offsets and results should stay in register.)
-    
+
       SAMPLE(0); SAMPLE(1); SAMPLE(2); SAMPLE(3);                         // Sample the wavetable at the offsets calculated above.
       SAMPLE(4); SAMPLE(5); SAMPLE(6); SAMPLE(7);                         // (Samples should stay in register.)
-    
+  
       int16_t mix0to7;                                                    // For voices 0..7
       mix0to7  = (MIX(0) + MIX(1) + MIX(2) + MIX(3));                     //   apply xor, modulate by amp, and mix.
       mix0to7 += (MIX(4) + MIX(5) + MIX(6) + MIX(7));
@@ -351,8 +357,9 @@ class Synth {
       #undef SAMPLE
       #undef PHASE
     
+#if 0
       TIMSK2 = _BV(OCIE2A);                                               // Restore timer2 interrupts.
-    
+#endif
       return (mix0to7 >> 1) + (mix8toF >> 1) + 0x8000;                    // For Emscripten, return as a single signed value (GCC/AVR will elide this code).
     }
 
@@ -360,16 +367,19 @@ class Synth {
     // Suspends audio processing ISR.  While suspended, it is safe to update of volatile state
     // shared with the ISR.
     void suspend() __attribute__((always_inline)) {
+#if 0
       cli();
       TIMSK2 = 0;
       sei();
+#endif  
     }
   
     // Resumes audio processing ISR.
     void resume() __attribute__((always_inline)) {
+#if 0
       TIMSK2 = _BV(OCIE2A);
+#endif  
     }
-  
   #ifdef __EMSCRIPTEN__
     Instrument instrument0;
 
@@ -401,8 +411,10 @@ volatile uint16_t       Synth::v_bentInterval[Synth::numVoices] = { 0 };
 volatile const int8_t*  Synth::v_baseWave[Synth::numVoices]     = { 0 };
          uint8_t        Synth::_note[Synth::numVoices]          = { 0 };
 
+#if 0
 SIGNAL(TIMER2_COMPA_vect) {
   Synth::isr();
 }
+#endif
 
 #endif // __SYNTH_H__

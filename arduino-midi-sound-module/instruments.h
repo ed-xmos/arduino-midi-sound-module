@@ -6,6 +6,8 @@
 #ifndef __INSTRUMENT_H__
 #define __INSTRUMENT_H__
 
+
+#include <stdint.h>
 #include <avr/pgmspace.h>
 
 struct EnvelopeStage {
